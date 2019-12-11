@@ -17,6 +17,7 @@ import (
 	"github.com/moleculer-go/moleculer/transit"
 	"github.com/moleculer-go/moleculer/transit/memory"
 	"github.com/moleculer-go/moleculer/transit/nats"
+	"moleculer/transit/redis"
 
 	"github.com/moleculer-go/moleculer"
 	"github.com/moleculer-go/moleculer/serializer"
@@ -149,6 +150,10 @@ func isNats(v string) bool {
 	return strings.Index(v, "nats://") > -1
 }
 
+func isRedis(v string) bool {
+	return strings.Index(v, "redis://") > -1
+}
+
 // CreateTransport : based on config it will load the transporter
 // for now is hard coded for NATS Streaming localhost
 func (pubsub *PubSub) createTransport() transit.Transport {
@@ -162,6 +167,9 @@ func (pubsub *PubSub) createTransport() transit.Transport {
 	} else if isNats(pubsub.broker.Config.Transporter) {
 		pubsub.logger.Info("Transporter: NatsTransporter")
 		transport = pubsub.createNatsTransporter()
+	} else if isRedis(pubsub.broker.Config.Transporter) {
+		pubsub.logger.Info("Transporter: Redisransporter")
+		transport = pubsub.createRedisTransporter()
 
 	} else {
 		pubsub.logger.Info("Transporter: Memory")
@@ -187,6 +195,20 @@ func (pubsub *PubSub) createNatsTransporter() transit.Transport {
 		URL:            pubsub.broker.Config.Transporter,
 		Name:           pubsub.broker.LocalNode().GetID(),
 		Logger:         pubsub.logger.WithField("transport", "nats"),
+		Serializer:     pubsub.serializer,
+		AllowReconnect: true,
+		ReconnectWait:  time.Second * 2,
+		MaxReconnect:   -1,
+	})
+}
+
+func (pubsub *PubSub) createRedisTransporter() transit.Transport {
+	pubsub.logger.Debug("createRedisTransporter()")
+
+	return redis.CreateRedisTransporter(redis.RedisOptions{
+		Url:            pubsub.broker.Config.Transporter,
+		Name:           pubsub.broker.LocalNode().GetID(),
+		Logger:         pubsub.logger.WithField("transport", "redis"),
 		Serializer:     pubsub.serializer,
 		AllowReconnect: true,
 		ReconnectWait:  time.Second * 2,
